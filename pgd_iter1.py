@@ -94,7 +94,7 @@ def evaluate(loader, attack=False):
     for x, y in loader:
         x, y = x.to(DEVICE), y.to(DEVICE)
         if attack:
-            x = pgd_attack(x, y, iters=7)
+            x = pgd_attack(x, y, iters=7) 
         with torch.no_grad():
             correct += (model(x).argmax(1) == y).sum().item()
             total   += len(y)
@@ -126,4 +126,4 @@ check.load_state_dict(torch.load("model_pgd.pt", map_location="cpu"))
 check.eval()
 with torch.no_grad():
     out = check(torch.randn(1, 3, 32, 32))
-print(f"Output shape: {out.shape}  ✓")
+print(f"Output shape: {out.shape} ")
