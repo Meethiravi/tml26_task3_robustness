@@ -22,12 +22,12 @@ data   = np.load("/home/atml_team060/tml26_task3/train.npz")
 images = torch.from_numpy(data["images"]).float() / 255.0
 labels = torch.from_numpy(data["labels"]).long()
 
-# Use full dataset — no val split for final submission
+# Using full dataset 
 train_loader = DataLoader(TensorDataset(images, labels), batch_size=256,
                           shuffle=True, num_workers=2, pin_memory=True)
 
+# Validation sample
 val_size = 5000
-# Randomly sample indices for evaluation
 val_indices = torch.randperm(len(images))[:val_size]
 val_sub_images = images[val_indices]
 val_sub_labels = labels[val_indices]
@@ -39,6 +39,7 @@ val_sub_loader = DataLoader(
     num_workers=2
 )
 
+# Data augmentation
 augment = nn.Sequential(
     T.RandomCrop(32, padding=4),
     T.RandomHorizontalFlip(),
@@ -53,7 +54,7 @@ model    = model.to(DEVICE)
 criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
 optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9,
                              weight_decay=5e-4, nesterov=True)
-# Madry-style schedule: full LR → drop at 60 and 90
+# Multistep LR scheduler
 scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
                              milestones=[60, 90], gamma=0.1)
 
@@ -85,10 +86,8 @@ def train_epoch(epoch):
         x, y  = x.to(DEVICE), y.to(DEVICE)
         x_aug = augment(x)
 
-        # PGD from epoch 1 — no warmup
         x_adv = pgd_attack(x_aug, y)
 
-        # concat clean + adversarial into one batch
         x_combined = torch.cat([x_aug, x_adv], dim=0)
         y_combined = torch.cat([y,     y     ], dim=0)
 
@@ -128,7 +127,7 @@ def evaluate(loader, attack=False):
         pbar.set_postfix(acc=f"{correct/total:.4f}")
     return correct / total, total_loss / len(loader)
 
-# ── Logging ───────────────────────────────────────────────────────────────────
+# Logs
 logs = {
     "epochs":         [],
     "train_loss":     [],
@@ -140,7 +139,7 @@ logs = {
     "score":          [],
 }
 
-best_score    = 0
+best_score = 0
 best_val_loss = float("inf")
 patience_counter = 0
 
@@ -152,10 +151,10 @@ for epoch in range(1, EPOCHS + 1):
 
     if epoch % 5 == 0 or epoch == 1:
         clean_acc, clean_val_loss = evaluate(val_sub_loader, attack=False)
-        rob_acc,   adv_val_loss   = evaluate(val_sub_loader, attack=True)
+        rob_acc, adv_val_loss = evaluate(val_sub_loader, attack=True)
 
-        score                     = 0.5 * clean_acc + 0.5 * rob_acc
-        lr_now                    = scheduler.get_last_lr()[0]
+        score = 0.5 * clean_acc + 0.5 * rob_acc
+        lr_now = scheduler.get_last_lr()[0]
 
         logs["epochs"].append(epoch)
         logs["train_loss"].append(round(train_loss, 6))
@@ -171,17 +170,18 @@ for epoch in range(1, EPOCHS + 1):
         if score > best_score:
             best_score = score
             torch.save(model.state_dict(), "model_pgd.pt")
-            print(f"      -> saved best model (score={best_score:.4f})")
+            print(f"-> saved best model (score={best_score:.4f})")
 
 with open("training_logs.json", "w") as f:
     json.dump(logs, f, indent=2)
 print("\nLogs saved -> training_logs.json")
 
-# ── Sanity check ──────────────────────────────────────────────────────────────
+# Sanity check
+
 check    = resnet50(weights=None)
 check.fc = nn.Linear(check.fc.in_features, NUM_CLASSES)
 check.load_state_dict(torch.load("model_pgd.pt", map_location="cpu"))
 check.eval()
 with torch.no_grad():
     out = check(torch.randn(1, 3, 32, 32))
-print(f"Output shape: {out.shape}  ✓")
+print(f"Output shape: {out.shape}")
