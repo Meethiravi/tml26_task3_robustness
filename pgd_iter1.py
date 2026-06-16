@@ -94,7 +94,7 @@ def evaluate(loader, attack=False):
     for x, y in loader:
         x, y = x.to(DEVICE), y.to(DEVICE)
         if attack:
-            x = pgd_attack(x, y, iters=5)
+            x = pgd_attack(x, y, iters=7)
         with torch.no_grad():
             correct += (model(x).argmax(1) == y).sum().item()
             total   += len(y)
