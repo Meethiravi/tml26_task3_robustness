@@ -112,4 +112,4 @@ check.load_state_dict(torch.load("model.pt", map_location="cpu"))
 check.eval()
 with torch.no_grad():
     out = check(torch.randn(1, 3, 32, 32))
-print(f"Output shape: {out.shape}  ✓")
+print(f"Output shape: {out.shape}")
